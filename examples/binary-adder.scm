@@ -45,6 +45,4 @@
 	     (write-char #\1)
 	     (write-char #\0)))))
 
-(write-binary (read-binary ()))
-
 (write-binary (whole-add (read-binary ()) (read-binary ()) #f))
