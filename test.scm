@@ -1,3 +1,7 @@
+(if #t
+    (write-char #\+)
+    (write-char #\-))
+
 (begin
  (write-char #\b)
  (write-char #\l)

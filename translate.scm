@@ -8,8 +8,8 @@
 
 (define (eliminate-high-level x)
     (match-case x
-      (#t '(lambda (t f) t))
-      (#f '(lambda (t f) f))
+      (#t #t)
+      (#f #f)
       (() `(lambda (f) ,(eliminate-high-level #t)))
       (cons '(lambda (a b) (lambda (f) (f a b))))
       (car '(lambda (l) (l (lambda (a b) a))))
@@ -17,10 +17,8 @@
       (null? `(lambda (l) (l (lambda (a b) ,(eliminate-high-level #f)))))
       ((lambda ?args ?body)
        `(lambda ,args ,(eliminate-high-level body)))
-      ((poor-if ?condition ?consequent ?alternative)
-       (eliminate-high-level `(,condition ,consequent ,alternative)))
       ((if ?condition ?consequent ?alternative)
-       `(((lambda (c t e) (c t e))
+       `((**if**
 	  ,(eliminate-high-level condition)
 	  (lambda (**if-dummy**) ,(eliminate-high-level consequent))
 	  (lambda (**if-dummy**) ,(eliminate-high-level alternative))) **i**))
@@ -32,17 +30,12 @@
        (eliminate-high-level `(if ,condition
 			       ,consequent
 			       (cond ,@rest))))
-      (((kwote not) ?b)			;make pure function
-       `(lambda (t f)
-	 (,(eliminate-high-level b) f t)))
-      ((poor-and ?a ?b)
-       (eliminate-high-level `(,a ,b #f)))
+      (((kwote not) ?b)			;should we make this a pure function?
+       (eliminate-high-level `(if ,b #f #t)))
       (((kwote and) ?x)
        (eliminate-high-level x))
       (((kwote and) ?a . ?rest)
        (eliminate-high-level `(if ,a (and ,@rest) #f)))
-      ((poor-or ?a ?b)
-       `(,a #t ,b))
       (((kwote or) ?x)
        (eliminate-high-level x))
       (((kwote or) ?a . ?rest)
@@ -132,11 +125,12 @@
 		    (curry `((,f ,(car a)) ,@(cdr a)))))))))
 
 (define (pass-through? x)
-    (or (and (list? x)
+    (or (boolean? x)
+	(and (list? x)
 	     (or (eq? (car x) '*write-char*)
 		 (eq? (car x) '**read-char=**)
 		 (eq? (car x) '*is-char*)))
-	(or (eq? x '**i**) (eq? x '**k**) (eq? x '**read-char**))))
+	(or (eq? x '**i**) (eq? x '**k**) (eq? x '**v**) (eq? x '**if**) (eq? x '**read-char**))))
 
 (define (pass-through-predicate? x)
     (or (and (list? x) (eq? (car x) '**read-char=**))
@@ -173,6 +167,12 @@
 	     (compile (lambda (x e)
 			(cond ((eq? x '**i**)
 			       (compile '(lambda (x) x) '()))
+			      ((eq? x #t)
+			       (compile '(lambda (t) (lambda (f) t)) '()))
+			      ((eq? x #f)
+			       (compile '(lambda (t) (lambda (f) f)) '()))
+			      ((eq? x '**if**)
+			       (compile '(lambda (c) (lambda (t) (lambda (e) ((c t) e)))) '()))
 			      ((pass-through-predicate? x)
 			       (list 'native `(lambda (**dummy**)
 					       (if (,x **i**)
@@ -241,14 +241,6 @@
 	  (else
 	   (max (lambda-depth (car x)) (lambda-depth (cadr x))))))
 
-;(define (explicify-apply x)
-;    (cond ((or (atom? x) (pass-through? x))
-;	   x)
-;	  ((eq? (car x) 'lambda)
-;	   `(lambda ,(cadr x) ,(explicify-apply (caddr x))))
-;	  (else
-;	   `(**apply** ,(explicify-apply (car x)) ,(explicify-apply (cadr x))))))
-
 (define (eliminate-lambda x)
     (letrec ((eliminate (lambda (x)
 			  (cond ((or (atom? x) (pass-through? x))
@@ -297,18 +289,16 @@
       (**k** (write-char #\k))
       (**s** (write-char #\s))
       (**d** (write-char #\d))
+      (**v** (write-char #\v))
+      (#t (write-char #\i))
+      (#f (write-char #\v))
+      (**if**
+       (display "``s`kc``s`k`s`k`k`ki``ss`k`kk"))
       (**read-char**
-       (display "`d`k``")
-       (display "`@``s`kc``s`k`s`k`k`ki``ss`k`kk") ;(lambda (t) (lambda (f) (if (read-char?) t f)))
-       (scheme->unlambda #t)
-       (scheme->unlambda #f))
+       (write-char #\@))
       ((**read-char=** ?c)
-       (display "`d`k``")
-       (display "`?")
-       (write-char c)
-       (display "``s`kc``s`k`s`k`k`ki``ss`k`kk") ;(lambda (t) (lambda (f) (if (read-char=? c) t f)))
-       (scheme->unlambda #t)
-       (scheme->unlambda #f))
+       (write-char #\?)
+       (write-char c))
       ((*write-char* ?c)
        (write-char #\.)
        (write-char (cadr x)))

@@ -1,2 +1,2 @@
 unlcomp : translate.scm
-	bigloo -o unlcomp $<
+	bigloo -Obench -o unlcomp $<
