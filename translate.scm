@@ -102,6 +102,22 @@
 	  (else
 	   (map eliminate-let x))))
 
+(define (eliminate-lambda* x)
+    (match-case x
+      ((lambda* ?name ?args ?body)
+       `((lambda (x) (x x))
+	 (lambda (,name ,@args)
+	   ,(eliminate-lambda* (macroexpand (list (cons name (lambda (args)
+							       (append (list name name) args))))
+					    body)))))
+      (?-
+       (if (or (atom? x) (null? x))
+	   x
+	   (map eliminate-lambda* x)))))
+
+(define (eliminate-lets x)
+    (eliminate-letrec (eliminate-let (eliminate-lambda* x))))
+
 (define (curry x)
     (cond ((atom? x)
 	   x)
@@ -312,10 +328,10 @@
 ;;; some compiler driver functions
 
 (define (scheme->unlambda x)
-    (unlambdify (eliminate-lambda (optimize-curried (curry (eliminate-high-level (eliminate-letrec (eliminate-let x))))))))
+    (unlambdify (eliminate-lambda (optimize-curried (curry (eliminate-high-level (eliminate-lets x)))))))
 
 (define (scheme->bytecode x)
-    (compile-to-bytecode (curry (eliminate-high-level (eliminate-letrec (eliminate-let x))))))
+    (compile-to-bytecode (curry (eliminate-high-level (eliminate-lets x)))))
 
 (define (scheme->bytecompile-unlambda x)
     (scheme->unlambda (bytecode->scheme (scheme->bytecode x))))
@@ -359,6 +375,8 @@
     (match-case expr
       ((lambda ?args ?body)
        `(lambda ,args ,(macroexpand (eliminate-names macros args) body)))
+      ((lambda* ?name ?args ?body)
+       `(lambda* ,name ,args ,(macroexpand (eliminate-names macros (cons name args)) body)))
       ((let ?name ?args ?body)
        `(let ,name ,(map (lambda (arg)
 			   (list (car arg) (macroexpand macros (cadr arg))))
@@ -397,6 +415,10 @@
 		(read-program (cons (cons name (macroexpand-application args body macros)) macros)))
 	       ((defmacro ?name ?body)
 		(read-program (cons (cons name (macroexpand-application '() body macros)) macros)))
+	       ((defrecmacro (?name . ?args) ?body)
+		(read-program (cons (cons name (macroexpand-application '() `(lambda* ,name ,args ,body) macros)) macros)))
+	       ((defrecmacro ?name ?body)
+		(read-program (cons (cons name (macroexpand-application '() `(lambda* ,name () ,body) macros)) macros)))
 	       (?program
 		(macroexpand macros program)))))))
 
@@ -412,7 +434,7 @@
 		 (write (scheme->bytecode (read-program file)))
 		 (newline))
 		(("-h" ?file (help "dump after eliminating high level"))
-		 (write (eliminate-high-level (eliminate-letrec (eliminate-let (read-program file)))))
+		 (write (eliminate-high-level (eliminate-lets (read-program file))))
 		 (newline))
 		(("-m" ?file (help "dump after macroexpansion"))
 		 (write (read-program file))
