@@ -1,3 +1,7 @@
+use delay instead of dummy lambdas for if
+
+implement (let name args body) better (with (lambda (x) (x x)))
+
 why do we delay char input?
 
 can we adopt unlambda's native booleans (i and v) instead of our own
