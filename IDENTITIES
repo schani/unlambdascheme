@@ -1,0 +1,6 @@
+``s`kk`kk => (lambda (x) (k k)) => `k`kk
+`kk => (lambda (y) (lambda (x) (lambda (y) x)))
+``s`kk`ks => (lambda (x) (lambda (y) s)) => `k`ks
+``s`kk`ki
+`k`kk
+`k`ks

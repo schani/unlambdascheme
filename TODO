@@ -1,0 +1,4 @@
+why do we delay char input?
+
+can we adopt unlambda's native booleans (i and v) instead of our own
+bools?
